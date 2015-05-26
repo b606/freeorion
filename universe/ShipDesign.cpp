@@ -10,6 +10,7 @@
 #include "Condition.h"
 #include "Effect.h"
 #include "Planet.h"
+#include "System.h"
 #include "Predicates.h"
 #include "Species.h"
 #include "Universe.h"
@@ -757,6 +758,68 @@ bool ShipDesign::ProductionLocation(int empire_id, int location_id) const {
     }
     // location matched all hull and part conditions, so is a valid build location
     return true;
+}
+
+bool ShipDesign::EnqueueLocation(int empire_id, int location_id) const {
+    // Adhoc EnqueueLocationcondition for immobile colony or outpost ships
+    // it does not duplicate ShipDesign::ProductionLocation(empire_id, location_id))
+    // call after ProductionLocation() has been tested
+
+    TemporaryPtr<const UniverseObject> location = GetUniverseObject(location_id);
+    if (!location)
+        return false;
+
+    // currently ships can only be built at planets, and by species that are
+    // not planetbound
+    TemporaryPtr<const Planet> planet = boost::dynamic_pointer_cast<const Planet>(location);
+    if (!planet)
+        return false;
+
+    const std::string& species_name = planet->SpeciesName();
+    if (species_name.empty())
+        return false;   // No species, no production
+    const Species* species = GetSpecies(species_name);
+    if (!species)
+        return false;
+    if (!species->CanProduceShips())
+        return false;
+
+    // Return true for moveable ships
+    if (!this->CanColonize())
+        return true;    // not a colonization ship
+    if (this->Speed() > 0.0)
+        return true;    // not an immobile colonization ship
+
+    // TODO: with Empire::ResearchableTech STARGATE
+    //       colony bases can move
+
+    // Immobile colony or outpost ship condition start here
+    // this ship can colonize...
+    if (!species->CanColonize())
+        return false;   // also, species that can't colonize can't produce colony ships
+
+    TemporaryPtr<const System> system = GetSystem(planet->SystemID());
+    if (!system)
+        return false;
+
+    //DebugLogger() << "ShipDesign::EnqueueLocation: ShipDesign.Speed() " << this->Speed();
+
+    // Listing unowned planets in the system
+    const std::set<int>& planet_ids = system->PlanetIDs();
+    std::vector<int> planet_ids_vec(planet_ids.begin(), planet_ids.end());
+
+    std::vector<TemporaryPtr<const Planet> > planets_here = Objects().FindObjects<const Planet>(planet_ids);
+    for (std::vector<TemporaryPtr<const Planet> >::const_iterator it = planets_here.begin();
+         it != planets_here.end(); ++it)
+    {
+        TemporaryPtr<const Planet> planet_cur = *it;
+        if (planet_cur->Owner() == ALL_EMPIRES)
+            return true;
+    }
+
+    // location does not match enqueuelocation conditions for immobile colony/outpost ships
+    DebugLogger() << "ShipDesign::EnqueueLocation: No colonization opportunity at system " << system->Name();
+    return false;
 }
 
 void ShipDesign::SetID(int id)

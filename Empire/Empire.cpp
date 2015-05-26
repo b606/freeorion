@@ -1634,14 +1634,15 @@ bool Empire::EnqueuableItem(BuildType build_type, int design_id, int location) c
     if (build_type == BT_SHIP) {
         // specified location must be a valid production location for this design
       
-        // TODO: The painful road to BT_SHIP EnqueueLocation
-        //       Left for a separate issue : discussions is needed to activate ship_design->EnqueueLocation
-        // Heavy modifications for immobile ships containing CO_OUTPOST_POD CO_COLONY_POD CO_SUSPEND_ANIM_POD:
-        // 1. Need to declare/modify bool ShipDesign::Enqueue/ProductionLocation(int empire_id, int location_id) in ShipDesign.cpp
-        // 2. Need to introduce HullType.m_enqeuelocation and all the stuff for that.
+        // TODO: Left for discussion. Two options here (using enqueuelocation scripts or)
+        //
+        // A. using enqueuelocation scripts (seems to be no plan for ttat).
+        //
+        // B. An adhoc ship_design->EnqueueLocation() with conditions hard-coded for immobile colony ships/base
+        // (drawback: no possibility for scripting)
       
-        // return ship_design->EnqueueLocation(m_id, location);
-        return true;
+        return ship_design->EnqueueLocation(m_id, location);
+        // return true;
 
     } else {
         ErrorLogger() << "Empire::EnqueuableItem was passed an invalid BuildType";
