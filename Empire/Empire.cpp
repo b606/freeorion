@@ -1590,7 +1590,11 @@ bool Empire::ProducibleItem(const ProductionQueue::ProductionItem& item, int loc
 }
 
 bool Empire::EnqueuableItem(BuildType build_type, const std::string& name, int location) const {
-    if (build_type != BT_BUILDING)
+    // special case to check for ships being passed with names, not design ids
+    if (build_type == BT_SHIP)
+        throw std::invalid_argument("Empire::EnqueuableItem was passed BuildType BT_SHIP with a name, but ship designs are tracked by number");
+
+    if (build_type == BT_BUILDING && !BuildingTypeAvailable(name))
         return false;
 
     const BuildingType* building_type = GetBuildingType(name);
@@ -1601,8 +1605,58 @@ bool Empire::EnqueuableItem(BuildType build_type, const std::string& name, int l
     if (!build_location)
         return false;
 
-    // specified location must be a valid production location for that building type
-    return building_type->EnqueueLocation(m_id, location);
+    if (build_type == BT_BUILDING) {
+        // specified location must be a valid production location for that building type
+        return building_type->EnqueueLocation(m_id, location);
+
+    } else {
+        ErrorLogger() << "Empire::EnqueuableItem was passed an invalid BuildType";
+        return false;
+    }
+}
+
+bool Empire::EnqueuableItem(BuildType build_type, int design_id, int location) const {
+    // special case to check for buildings being passed with ids, not names
+    if (build_type == BT_BUILDING)
+        throw std::invalid_argument("Empire::EnqueuableItem was passed BuildType BT_BUILDING with a design id number, but these types are tracked by name");
+
+    if (build_type == BT_SHIP && !ShipDesignAvailable(design_id))
+        return false;
+
+    // design must be known to this empire
+    const ShipDesign* ship_design = GetShipDesign(design_id);
+    if (!ship_design || !ship_design->Producible())
+        return false;
+
+    TemporaryPtr<UniverseObject> build_location = GetUniverseObject(location);
+    if (!build_location) return false;
+
+    if (build_type == BT_SHIP) {
+        // specified location must be a valid production location for this design
+      
+        // TODO: The painful road to BT_SHIP EnqueueLocation
+        //       Left for a separate issue : discussions is needed to activate ship_design->EnqueueLocation
+        // Heavy modifications for immobile ships containing CO_OUTPOST_POD CO_COLONY_POD CO_SUSPEND_ANIM_POD:
+        // 1. Need to declare/modify bool ShipDesign::Enqueue/ProductionLocation(int empire_id, int location_id) in ShipDesign.cpp
+        // 2. Need to introduce HullType.m_enqeuelocation and all the stuff for that.
+      
+        // return ship_design->EnqueueLocation(m_id, location);
+        return true;
+
+    } else {
+        ErrorLogger() << "Empire::EnqueuableItem was passed an invalid BuildType";
+        return false;
+    }
+}
+
+bool Empire::EnqueuableItem(const ProductionQueue::ProductionItem& item, int location) const {
+    if (item.build_type == BT_BUILDING)
+        return EnqueuableItem(item.build_type, item.name, location);
+    else if (item.build_type == BT_SHIP)
+        return EnqueuableItem(item.build_type, item.design_id, location);
+    else
+        throw std::invalid_argument("Empire::EnqueuableItem was passed a ProductionItem with an invalid BuildType");
+    return false;
 }
 
 int Empire::NumSitRepEntries(int turn/* = INVALID_GAME_TURN*/) const {

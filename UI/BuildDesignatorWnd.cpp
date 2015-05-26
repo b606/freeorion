@@ -274,7 +274,7 @@ namespace {
             push_back(m_panel);
 
             if (const Empire* empire = GetEmpire(m_empire_id)) {
-                if (!empire->ProducibleItem(m_item, m_location_id)) {
+                if (!empire->ProducibleItem(m_item, m_location_id)  || !empire->EnqueuableItem(m_item, m_location_id) ) {
                     this->Disable(true);
                     m_panel->Disable(true);
                 }
